@@ -50,6 +50,7 @@ namespace Tonnage
                 }
             }
         }
+
         private static async Task AnswerToClient(long chatId, string Url, HttpClient client, List<double> nums)
         {
             var answer = "";
