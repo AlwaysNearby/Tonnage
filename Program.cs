@@ -9,7 +9,7 @@ namespace Tonnage
         static async Task Main(string[] args)
         {
             var httpClient = new HttpClient();
-            int offset = -1;
+            int offset = -100;
 
             while (true)
             {
