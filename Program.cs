@@ -1,7 +1,13 @@
 ﻿using Newtonsoft.Json;
+using System.Text;
 
 namespace Tonnage
 {
+    public class BodyMessage
+    {
+        public string chat_id { get; set; }
+        public string text { get; set; }
+    }
     internal class Program
     {
         const string Url = "https://api.telegram.org/bot7606445507:AAGl5PQW8BqRIgmjCibmhDefAz85KAj-L0I/";
@@ -35,16 +41,15 @@ namespace Tonnage
                     //на основе этого текста рсчитать подходы и общий тоннаж.
                     var chatId = telegramUpdate.Result[telegramUpdate.Result.Length - 1].Message.Chat.Id;
                     string text = telegramUpdate.Result[telegramUpdate.Result.Length - 1].Message.Text;
-
+                    
                     if (!CorrectRequest(text))
                     {
-                        var answer = "Я не смог понять, что вы мне прислали. Пожалуйста, напишите числами шаг по весу и шаг по массе через пробел.%0AПример: 2 2,5 %0AСпасибо!";
+                        var answer = "Я не смог понять, что вы мне прислали. Пожалуйста, напишите числами шаг веса, шаг количества повторений и ваш максимальный вес на 1 повторение через пробел.%0AПример: 2 2,5 %0AСпасибо!";
                         await httpClient.GetAsync(Url + $"sendMessage?chat_id={chatId}&text={answer}");
                         continue;
                     }
                     else
                     {
-                        //await Console.Out.WriteLineAsync(telegramUpdate.Result[telegramUpdate.Result.Length - 1].Message.Text);
                         AnswerToClient(chatId, Url, httpClient, CountedTonnage(text));
                     }
                 }
@@ -53,12 +58,20 @@ namespace Tonnage
 
         private static async Task AnswerToClient(long chatId, string Url, HttpClient client, List<double> nums)
         {
-            var answer = "";
-            for (int i = nums.Count - 1; i > -1; i -= 3)
+            StringBuilder answer = new StringBuilder();
+            for (int i = 0; i < nums.Count; i += 3)
             {
-                answer += $"вес штанги - {nums[i]} , количество повторений - {nums[i - 1]}, тоннаж на данный подход - {nums[i - 2]}%0A";
+                answer.AppendLine($"вес штанги - {nums[i]} , количество повторений - {nums[i + 1]}, тоннаж на данный подход - {nums[i + 2]}");
             }
-            await client.GetAsync(Url + $"sendMessage?chat_id={chatId}&text={answer}");
+
+            var bodyMessage = new BodyMessage
+            {
+                chat_id = chatId.ToString(),
+                text = answer.ToString()
+            };
+            string json = JsonConvert.SerializeObject(bodyMessage);
+            HttpContent content = new StringContent(json, Encoding.UTF8, "application/json");
+            await client.PostAsync(Url + "sendMessage", content);
         }
 
         private static List<double> CountedTonnage(string text)
@@ -71,17 +84,22 @@ namespace Tonnage
                 nums[i] = double.Parse(str[i]);
             }
 
-            double endWeight = 100;
+            double endWeight = nums[2];
             double startWeight = 20;
-            double CountRepetitions = 1;
-            while (endWeight >= startWeight)
+            double CountRepetitions = (endWeight - startWeight) / nums[0] * nums[1];
+            while (startWeight < endWeight)
             {
-                result.Add(endWeight * CountRepetitions);
+                result.Add(startWeight);
                 result.Add(CountRepetitions);
-                result.Add(endWeight);
-                endWeight -= nums[1];
-                CountRepetitions += nums[0];
+                result.Add(startWeight * CountRepetitions);
+
+                startWeight += nums[0];
+                CountRepetitions -= nums[1];
             }
+            result.Add(endWeight);
+            result.Add(1);
+            result.Add(endWeight);
+               
             return result;
         }
 
